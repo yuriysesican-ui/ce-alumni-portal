@@ -176,6 +176,7 @@ FILE_TRACER = "alumni_career_tracer.csv"
 FILE_GRAD_STUDIES = "graduate_studies_cpd.csv"
 FILE_CQI = "cqi_interventions.csv"
 FILE_FEEDBACK = "alumni_feedback.csv"
+FILE_PIN_REQUESTS = "pin_reset_requests.csv"
 
 HEADERS_ALUMNI_INFO = [
     "Timestamp", "Registration_ID", "Student_ID", "First_Name", "Middle_Name", "Last_Name",
@@ -214,6 +215,10 @@ HEADERS_FEEDBACK = [
     "Subject_Title", "Message_Content", "Status"
 ]
 
+HEADERS_PIN_REQUESTS = [
+    "Timestamp", "Request_ID", "Student_ID_Or_Name", "Contact_Number", "Reason_Message", "Status"
+]
+
 # Helper Function: Initialize CSV Files
 def init_file(filename, headers):
     if not os.path.exists(filename):
@@ -241,6 +246,7 @@ init_file(FILE_TRACER, HEADERS_TRACER)
 init_file(FILE_GRAD_STUDIES, HEADERS_GRAD_STUDIES)
 init_file(FILE_CQI, HEADERS_CQI)
 init_file(FILE_FEEDBACK, HEADERS_FEEDBACK)
+init_file(FILE_PIN_REQUESTS, HEADERS_PIN_REQUESTS)
 
 # Helper Function: Load CSV safely
 def load_csv_safely(filename, headers):
@@ -447,6 +453,107 @@ if not st.session_state["logged_user"] and not st.session_state["is_admin"]:
                     else:
                         st.error("Invalid credentials. Please check your Student ID / Name and Security PIN.")
 
+        st.markdown("---")
+        with st.expander("🔑 Forgot Security PIN / Reset Account"):
+            st.caption("Verify your identity using your 4 permanent academic and contact details to set a new PIN instantly.")
+            
+            rst_c1, rst_c2 = st.columns(2)
+            with rst_c1:
+                rst_dob = st.date_input("Date of Birth*", value=datetime.date(2000, 1, 1), min_value=datetime.date(1950, 1, 1), max_value=datetime.date(2015, 12, 31), format="MM/DD/YYYY", key="rst_dob_input")
+                rst_grad_year = st.selectbox("Graduation Year*", yr_opts, index=None, placeholder="Select Graduation Year...", key="rst_yr_input")
+            with rst_c2:
+                rst_grad_term = st.selectbox("Graduation Term*", term_opts, index=None, placeholder="Select Graduation Term...", key="rst_term_input")
+                rst_mobile = st.text_input("Registered Mobile Phone Number*", placeholder="e.g., 09171234567", key="rst_mob_input")
+
+            if st.button("Verify Identity Details", key="btn_verify_reset_details"):
+                clean_mob_rst = re.sub(r"[\s\-+()]", "", rst_mobile.strip())
+                if not rst_grad_year or not rst_grad_term or not clean_mob_rst:
+                    st.error("⚠️ Please fill in all 4 verification details (Date of Birth, Graduation Year, Term, and Mobile Number).")
+                else:
+                    df_u = load_csv_safely(FILE_ALUMNI_INFO, HEADERS_ALUMNI_INFO)
+                    if df_u.empty:
+                        st.error("No alumni records found in database.")
+                    else:
+                        match_row = None
+                        target_dob_str1 = rst_dob.strftime("%m/%d/%Y")
+                        target_dob_str2 = rst_dob.strftime("%Y-%m-%d")
+
+                        for idx, row in df_u.iterrows():
+                            dob_db = str(row.get("Date_Of_Birth", "")).strip()
+                            yr_db = str(row.get("Graduation_Year", "")).strip()
+                            term_db = str(row.get("Graduation_Term", "")).strip()
+                            mob_db = re.sub(r"[\s\-+()]", "", str(row.get("Contact_Number", "")).strip())
+
+                            dob_match = (dob_db == target_dob_str1 or dob_db == target_dob_str2)
+                            yr_match = (yr_db == str(rst_grad_year).strip())
+                            term_match = (term_db == str(rst_grad_term).strip())
+                            mob_match = (mob_db == clean_mob_rst and len(clean_mob_rst) >= 7)
+
+                            if dob_match and yr_match and term_match and mob_match:
+                                match_row = row.to_dict()
+                                break
+
+                        if match_row:
+                            st.session_state["reset_matched_student"] = match_row
+                            st.success(f"✅ Identity verified for **{match_row.get('First_Name', '')} {match_row.get('Last_Name', '')}**! Please enter your new 4-digit Security PIN below.")
+                        else:
+                            st.error("❌ No matching alumni profile found with these exact 4 verification details. Please verify your entries or submit an Admin Request below.")
+
+            if st.session_state.get("reset_matched_student"):
+                matched_st = st.session_state["reset_matched_student"]
+                st.info(f"Setting new PIN for: **{matched_st.get('First_Name')} {matched_st.get('Last_Name')}** (Student ID: `{matched_st.get('Student_ID')}`)")
+                new_pin_val = st.text_input("Enter New 4-Digit Security PIN*", type="password", max_chars=4, placeholder="••••", key="rst_new_pin_val")
+                
+                if st.button("Save New PIN & Log In", key="btn_save_new_pin_self"):
+                    if not new_pin_val.strip() or len(new_pin_val.strip()) != 4 or not new_pin_val.strip().isdigit():
+                        st.error("⚠️ Please enter a valid 4-digit numeric Security PIN.")
+                    else:
+                        target_sid = str(matched_st.get("Student_ID")).strip().upper()
+                        df_u_all = load_csv_safely(FILE_ALUMNI_INFO, HEADERS_ALUMNI_INFO)
+                        
+                        updated_rows = []
+                        updated_user_match = None
+                        for idx, r in df_u_all.iterrows():
+                            r_dict = r.to_dict()
+                            if str(r_dict.get("Student_ID", "")).strip().upper() == target_sid:
+                                r_dict["Security_PIN"] = new_pin_val.strip()
+                                updated_user_match = r_dict
+                            updated_rows.append(r_dict)
+                        
+                        if updated_rows:
+                            df_save = pd.DataFrame(updated_rows)[HEADERS_ALUMNI_INFO]
+                            df_save.to_csv(FILE_ALUMNI_INFO, index=False, encoding="utf-8")
+                        
+                        if updated_user_match:
+                            st.session_state["logged_user"] = updated_user_match
+                        st.session_state["is_admin"] = False
+                        st.session_state["reset_matched_student"] = None
+                        st.success("🎉 Security PIN updated successfully! Welcome back.")
+                        st.rerun()
+
+            st.markdown("---")
+            st.markdown("##### 💬 Need Admin Support for PIN Reset?")
+            st.caption("If you changed your mobile number or cannot recall your graduation details, submit a request directly to the Department Chair.")
+            
+            req_name = st.text_input("Full Name or Student ID Number*", placeholder="e.g., Juan Dela Cruz or 2020123456", key="req_name_input")
+            req_contact = st.text_input("Current Contact Number or Email*", placeholder="e.g., 09179998888 or juan@gmail.com", key="req_contact_input")
+            req_msg = st.text_area("Reason / Explanation*", placeholder="e.g., Changed my mobile number and lost access to old PIN.", key="req_msg_input")
+            
+            if st.button("Submit PIN Reset Request to Chair", key="btn_submit_pin_req"):
+                if not req_name.strip() or not req_contact.strip() or not req_msg.strip():
+                    st.error("⚠️ Please fill in your name/Student ID, current contact info, and explanation before submitting.")
+                else:
+                    now_ts = datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S")
+                    req_id = f"REQ-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+                    new_req_row = [now_ts, req_id, req_name.strip(), req_contact.strip(), req_msg.strip(), "Pending"]
+                    
+                    init_file(FILE_PIN_REQUESTS, HEADERS_PIN_REQUESTS)
+                    with open(FILE_PIN_REQUESTS, mode="a", newline="", encoding="utf-8") as f:
+                        writer = csv.writer(f)
+                        writer.writerow(new_req_row)
+                    
+                    st.success("✅ Your PIN reset request has been submitted to the Department Chair! You may also visit or call the department office.")
+
     # --- FIRST TIME REGISTRATION ---
     elif auth_choice == "First Time Registration (Sign-up)":
         st.markdown('<div class="section-header">First Time Registration</div>', unsafe_allow_html=True)
@@ -562,6 +669,10 @@ elif st.session_state["logged_user"]:
     user_info = st.session_state["logged_user"]
     sid_user = user_info.get("Student_ID")
     full_name_user = f"{user_info.get('First_Name','')} {user_info.get('Middle_Name','')} {user_info.get('Last_Name','')}".strip()
+
+    curr_pin = str(user_info.get("Security_PIN", "")).strip()
+    if curr_pin == "0000":
+        st.warning("⚠️ **Security Notice:** You are currently logged in with a temporary PIN (`0000`). Please go to **Tab 1 (ALUMNI INFORMATION)** below to update your Security PIN to a private 4-digit code.")
 
     tab_info, tab_exam, tab_tracer, tab_grad, tab_feedback = st.tabs([
         "ALUMNI INFORMATION",
@@ -2137,3 +2248,95 @@ elif st.session_state["is_admin"]:
 
             except Exception as ex:
                 st.error(f"❌ Error during database import: {str(ex)}")
+
+    # --------------------------------------------------------------------------
+    # ADMIN SECTION 7: PIN & ACCOUNT SECURITY MANAGEMENT
+    # --------------------------------------------------------------------------
+    st.markdown('<div class="section-header">Section 7: PIN & Account Security Management</div>', unsafe_allow_html=True)
+    st.caption("Review pending alumnus PIN reset requests, issue one-click resets, or manually override PINs for alumni.")
+
+    df_pin_reqs = load_csv_safely(FILE_PIN_REQUESTS, HEADERS_PIN_REQUESTS)
+    pending_reqs = df_pin_reqs[df_pin_reqs["Status"].astype(str).str.strip().str.title() == "Pending"] if not df_pin_reqs.empty else pd.DataFrame()
+
+    st.markdown(f"##### 📩 Pending Alumni PIN Reset Requests ({len(pending_reqs)})")
+
+    if pending_reqs.empty:
+        st.info("No pending PIN reset requests at this time.")
+    else:
+        for idx, p_row in pending_reqs.iterrows():
+            with st.container():
+                st.markdown(f"""
+                <div style="background-color: #f8fafc; border-left: 4px solid #006633; padding: 0.8rem 1rem; border-radius: 6px; margin-bottom: 0.6rem; border: 1px solid #e2e8f0;">
+                    <strong style="color: #004d25;">Requester:</strong> {p_row.get('Student_ID_Or_Name')} &nbsp;|&nbsp; 
+                    <strong style="color: #004d25;">Contact:</strong> {p_row.get('Contact_Number')} &nbsp;|&nbsp; 
+                    <strong style="color: #004d25;">Submitted:</strong> {p_row.get('Timestamp')}<br>
+                    <span style="color: #475569;"><em>Note: {p_row.get('Reason_Message')}</em></span>
+                </div>
+                """, unsafe_allow_html=True)
+
+                col_act1, col_act2 = st.columns([2, 3])
+                with col_act1:
+                    if st.button(f"🔓 Reset PIN to 0000 ({p_row.get('Request_ID')})", key=f"btn_reset_req_{p_row.get('Request_ID')}"):
+                        target_ident = str(p_row.get("Student_ID_Or_Name")).strip().upper()
+                        df_a_all = load_csv_safely(FILE_ALUMNI_INFO, HEADERS_ALUMNI_INFO)
+
+                        found_reset = False
+                        if not df_a_all.empty:
+                            updated_a_rows = []
+                            for _, a_r in df_a_all.iterrows():
+                                a_dict = a_r.to_dict()
+                                sid_c = str(a_dict.get("Student_ID", "")).strip().upper()
+                                fn_c = str(a_dict.get("First_Name", "")).strip().upper()
+                                ln_c = str(a_dict.get("Last_Name", "")).strip().upper()
+                                full_c = f"{fn_c} {ln_c}".strip()
+
+                                if target_ident == sid_c or target_ident in full_c or target_ident == fn_c or target_ident == ln_c:
+                                    a_dict["Security_PIN"] = "0000"
+                                    found_reset = True
+                                updated_a_rows.append(a_dict)
+
+                            if found_reset:
+                                pd.DataFrame(updated_a_rows)[HEADERS_ALUMNI_INFO].to_csv(FILE_ALUMNI_INFO, index=False, encoding="utf-8")
+
+                        # Mark request as Resolved
+                        df_pin_reqs.loc[df_pin_reqs["Request_ID"] == p_row.get("Request_ID"), "Status"] = "Resolved"
+                        df_pin_reqs.to_csv(FILE_PIN_REQUESTS, index=False, encoding="utf-8")
+
+                        if found_reset:
+                            st.success(f"🔓 Security PIN reset to `0000` for {p_row.get('Student_ID_Or_Name')}. Request marked as Resolved!")
+                        else:
+                            st.warning(f"Request marked as Resolved, but could not automatically match '{p_row.get('Student_ID_Or_Name')}' in database. Please verify manually below.")
+                        st.rerun()
+
+    st.markdown("---")
+    st.markdown("##### 🛠️ Manual Security PIN Override Lookup")
+    st.caption("Search for any registered alumnus by Student ID or Name to manually reassign a Security PIN.")
+
+    df_a_lookup = load_csv_safely(FILE_ALUMNI_INFO, HEADERS_ALUMNI_INFO)
+    if df_a_lookup.empty:
+        st.info("No registered alumni in database.")
+    else:
+        m_col1, m_col2, m_col3 = st.columns([2, 1.5, 1.5])
+        with m_col1:
+            alumni_options = [f"{r.get('Student_ID')} - {r.get('First_Name')} {r.get('Last_Name')} (Current PIN: {r.get('Security_PIN')})" for _, r in df_a_lookup.iterrows()]
+            sel_alumnus = st.selectbox("Select Alumnus Profile*", alumni_options, index=None, placeholder="Search by Student ID or Name...", key="sel_manual_override_alumnus")
+        with m_col2:
+            override_pin_val = st.text_input("New 4-Digit PIN*", value="0000", max_chars=4, key="manual_override_pin_input")
+        with m_col3:
+            st.write("") # Spacer
+            st.write("")
+            if st.button("Apply Manual PIN Reset", key="btn_apply_manual_pin"):
+                if not sel_alumnus or not override_pin_val.strip() or len(override_pin_val.strip()) != 4 or not override_pin_val.strip().isdigit():
+                    st.error("⚠️ Please select an alumnus and enter a valid 4-digit numeric PIN.")
+                else:
+                    sel_sid = sel_alumnus.split(" - ")[0].strip()
+                    updated_lookup_rows = []
+                    for _, a_r in df_a_lookup.iterrows():
+                        a_dict = a_r.to_dict()
+                        if str(a_dict.get("Student_ID", "")).strip() == sel_sid:
+                            a_dict["Security_PIN"] = override_pin_val.strip()
+                        updated_lookup_rows.append(a_dict)
+                    
+                    pd.DataFrame(updated_lookup_rows)[HEADERS_ALUMNI_INFO].to_csv(FILE_ALUMNI_INFO, index=False, encoding="utf-8")
+                    st.success(f"🎉 Security PIN for Student ID `{sel_sid}` successfully updated to `{override_pin_val.strip()}`!")
+                    st.rerun()

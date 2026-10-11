@@ -1,4 +1,5 @@
 import os
+import io
 import re
 import csv
 import json
@@ -399,11 +400,11 @@ if not st.session_state["logged_user"] and not st.session_state["is_admin"]:
     # --- RETURNING GRADUATE LOGIN ---
     if auth_choice == "CE Alumni Sign-In":
         st.subheader("CE Alumni Sign-In")
-        st.caption("Enter your Student ID Number or Full Name along with your 4-Digit Security PIN.")
+        st.caption("Enter your 10-Digit Student ID Number or Full Name along with your 4-Digit Security PIN.")
 
         col_s1, col_s2 = st.columns(2)
         with col_s1:
-            login_identity = st.text_input("Student ID Number or Full Name*", placeholder="e.g., 2020-12345 or Juan Dela Cruz")
+            login_identity = st.text_input("Student ID Number or Full Name*", placeholder="e.g., 2020123456 or Juan Dela Cruz")
         with col_s2:
             login_pin = st.text_input("4-Digit Security PIN*", type="password", placeholder="••••", max_chars=4)
 
@@ -415,18 +416,20 @@ if not st.session_state["logged_user"] and not st.session_state["is_admin"]:
                 if df_users.empty:
                     st.error("No registered alumni found. Please complete First Time Registration.")
                 else:
-                    input_id_clean = fmt_upper(login_identity)
+                    input_id_raw = login_identity.strip().upper()
+                    input_id_clean = re.sub(r"[\s\-]", "", input_id_raw)
                     input_pin_clean = login_pin.strip()
 
                     match = None
                     for idx, row in df_users.iterrows():
-                        sid = str(row.get("Student_ID", "")).strip().upper()
+                        sid_raw = str(row.get("Student_ID", "")).strip().upper()
+                        sid_clean = re.sub(r"[\s\-]", "", sid_raw)
                         fn = str(row.get("First_Name", "")).strip().upper()
                         ln = str(row.get("Last_Name", "")).strip().upper()
                         full_name_clean = f"{fn} {ln}".strip()
                         pin = str(row.get("Security_PIN", "")).strip()
 
-                        if (input_id_clean == sid or input_id_clean == full_name_clean or input_id_clean in full_name_clean) and input_pin_clean == pin:
+                        if (input_id_clean == sid_clean or input_id_clean == sid_raw or input_id_raw == full_name_clean or input_id_raw in full_name_clean) and input_pin_clean == pin:
                             match = row.to_dict()
 
                     if match:
@@ -446,7 +449,7 @@ if not st.session_state["logged_user"] and not st.session_state["is_admin"]:
 
         id_col1, id_col2, id_col3, id_col4, id_col5 = st.columns(5)
         with id_col1:
-            r_sid = st.text_input("Student ID Number*", placeholder="e.g., 2020-12345")
+            r_sid = st.text_input("10-Digit Student ID Number*", placeholder="e.g., 2020123456")
         with id_col2:
             r_pin = st.text_input("4-Digit Security PIN*", type="password", placeholder="••••", max_chars=4)
         with id_col3:
@@ -482,7 +485,8 @@ if not st.session_state["logged_user"] and not st.session_state["is_admin"]:
 
         if st.button("Complete Registration & Save Profile", key="btn_register_save"):
             missing_fields = []
-            if not r_sid.strip(): missing_fields.append("Student ID Number")
+            clean_sid = re.sub(r"[\s\-]", "", r_sid.strip())
+            if not r_sid.strip() or len(clean_sid) != 10 or not clean_sid.isdigit(): missing_fields.append("Valid 10-Digit Student ID Number (must be exactly 10 digits, e.g., 2020123456)")
             if not r_pin.strip() or len(r_pin.strip()) != 4 or not r_pin.strip().isdigit(): missing_fields.append("Valid 4-Digit Security PIN (4 digits)")
             if not r_fn.strip(): missing_fields.append("First Name")
             if not r_ln.strip(): missing_fields.append("Last Name")
@@ -498,10 +502,11 @@ if not st.session_state["logged_user"] and not st.session_state["is_admin"]:
                 list_str = "\n".join([f"• {m}" for m in missing_fields])
                 st.error(f"⚠️ Please complete the following required fields before completing registration:\n\n{list_str}")
             else:
-                sid_std = fmt_upper(r_sid)
+                sid_std = clean_sid
                 df_existing = load_csv_safely(FILE_ALUMNI_INFO, HEADERS_ALUMNI_INFO)
 
-                if not df_existing.empty and sid_std in df_existing["Student_ID"].astype(str).str.strip().str.upper().values:
+                existing_sids = [re.sub(r"[\s\-]", "", str(s).strip().upper()) for s in df_existing["Student_ID"].values] if not df_existing.empty else []
+                if not df_existing.empty and sid_std in existing_sids:
                     st.error(f"Student ID `{sid_std}` is already registered in the database. Please sign in as a returning graduate.")
                 else:
                     now_str = datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S")
@@ -1256,8 +1261,46 @@ elif st.session_state["is_admin"]:
     if df_a.empty:
         st.info("No registered alumni entries found in the database.")
     else:
+        search_query = st.text_input(
+            "🔍 Search Alumni Directory (by Name, Student ID, Email, or Degree):",
+            placeholder="e.g., Dela Cruz, Juan, 2020123456, or Structural...",
+            key="admin_sec2_search"
+        ).strip().lower()
+
+        if search_query:
+            def row_matches(row):
+                sid = str(row.get("Student_ID", "")).lower()
+                sid_clean = re.sub(r"[\s\-]", "", sid)
+                fn = str(row.get("First_Name", "")).lower()
+                mn = str(row.get("Middle_Name", "")).lower()
+                ln = str(row.get("Last_Name", "")).lower()
+                full_n = f"{fn} {mn} {ln}".lower()
+                full_n_simple = f"{fn} {ln}".lower()
+                email = str(row.get("Email", "")).lower()
+                degree = str(row.get("Degree_Program", "")).lower()
+
+                q_clean = re.sub(r"[\s\-]", "", search_query)
+
+                return (
+                    search_query in sid
+                    or q_clean in sid_clean
+                    or search_query in fn
+                    or search_query in ln
+                    or search_query in full_n
+                    or search_query in full_n_simple
+                    or search_query in email
+                    or search_query in degree
+                )
+
+            mask = df_a.apply(row_matches, axis=1)
+            df_a_filtered = df_a[mask]
+        else:
+            df_a_filtered = df_a
+
+        st.caption(f"Displaying **{len(df_a_filtered)}** matching record(s) out of **{len(df_a)}** total registered alumni.")
+
         st.dataframe(
-            df_a[["Student_ID", "First_Name", "Last_Name", "Degree_Program", "Graduation_Year", "Email", "Contact_Number", "Security_PIN"]],
+            df_a_filtered[["Student_ID", "First_Name", "Last_Name", "Degree_Program", "Graduation_Year", "Email", "Contact_Number", "Security_PIN"]],
             use_container_width=True,
             height=380
         )
@@ -1928,28 +1971,160 @@ elif st.session_state["is_admin"]:
                 st.rerun()
 
     # --------------------------------------------------------------------------
-    # ADMIN SECTION 6: MASTER DATA EXPORT & CSV DOWNLOADS
+    # ADMIN SECTION 6: MASTER DATA MANAGEMENT (EXPORT & IMPORT)
     # --------------------------------------------------------------------------
-    st.markdown('<div class="section-header">Section 6: Master Data Export & CSV Downloads</div>', unsafe_allow_html=True)
-    st.caption("Download standardized raw CSV databases for CHED, PTC-ACBET, and institutional accreditation audits.")
+    st.markdown('<div class="section-header">Section 6: Master Data Management (Export & Import)</div>', unsafe_allow_html=True)
 
+    # Top row: Excel Master Download
+    st.markdown("##### 📥 Export Master Database")
+    
+    excel_buffer = io.BytesIO()
+    excel_ready = False
+    try:
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df_a.to_excel(writer, sheet_name='Alumni_Information', index=False)
+            df_b.to_excel(writer, sheet_name='Board_Exam_Data', index=False)
+            df_t.to_excel(writer, sheet_name='Career_Tracer', index=False)
+            df_g.to_excel(writer, sheet_name='Graduate_Studies', index=False)
+            df_cqi.to_excel(writer, sheet_name='CQI_Interventions', index=False)
+            df_fb.to_excel(writer, sheet_name='Alumni_Feedback', index=False)
+        excel_bytes = excel_buffer.getvalue()
+        excel_ready = True
+    except Exception as e:
+        excel_ready = False
+
+    c_ex1, c_ex2 = st.columns([1.2, 2.8])
+    with c_ex1:
+        if excel_ready:
+            st.download_button(
+                label="📥 Download Master Database (.xlsx)",
+                data=excel_bytes,
+                file_name="USJ-R_CE_Alumni_Master_Database.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        else:
+            st.warning("Install openpyxl (pip install openpyxl) for Excel export.")
+
+    st.markdown("##### 📄 Individual CSV Downloads")
     exp_col1, exp_col2, exp_col3, exp_col4, exp_col5, exp_col6 = st.columns(6)
 
     with exp_col1:
         csv_a = df_a.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Alumni Info CSV", data=csv_a, file_name="alumni_information_master.csv", mime="text/csv")
+        st.download_button("📥 Alumni Info", data=csv_a, file_name="alumni_information_master.csv", mime="text/csv")
     with exp_col2:
         csv_b = df_b.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Board Exam CSV", data=csv_b, file_name="board_exam_data_master.csv", mime="text/csv")
+        st.download_button("📥 Board Exam", data=csv_b, file_name="board_exam_data_master.csv", mime="text/csv")
     with exp_col3:
         csv_t = df_t.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Career Tracer CSV", data=csv_t, file_name="alumni_career_tracer_master.csv", mime="text/csv")
+        st.download_button("📥 Career Tracer", data=csv_t, file_name="alumni_career_tracer_master.csv", mime="text/csv")
     with exp_col4:
         csv_g = df_g.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Grad Studies CSV", data=csv_g, file_name="graduate_studies_master.csv", mime="text/csv")
+        st.download_button("📥 Grad Studies", data=csv_g, file_name="graduate_studies_master.csv", mime="text/csv")
     with exp_col5:
         csv_cqi = df_cqi.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 CQI Interventions CSV", data=csv_cqi, file_name="cqi_interventions_master.csv", mime="text/csv")
+        st.download_button("📥 CQI", data=csv_cqi, file_name="cqi_interventions_master.csv", mime="text/csv")
     with exp_col6:
         csv_fb = df_fb.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Feedback CSV", data=csv_fb, file_name="alumni_feedback_master.csv", mime="text/csv")
+        st.download_button("📥 Feedback", data=csv_fb, file_name="alumni_feedback_master.csv", mime="text/csv")
+
+    st.markdown("---")
+    st.markdown("##### 📤 Import / Restore Master Database (.xlsx or .csv)")
+
+    restore_mode = st.radio(
+        "Select Import Action Mode:",
+        ["Merge & Append (Add missing entries safely)", "Full Overwrite / Restore (Replace current working database)"],
+        index=0,
+        horizontal=True
+    )
+
+    uploaded_file = st.file_uploader(
+        "Drag and drop your master database file (.xlsx or .csv):",
+        type=["xlsx", "csv"],
+        key="master_db_uploader"
+    )
+
+    if uploaded_file is not None:
+        if st.button("🚀 Process & Apply Database Import"):
+            try:
+                fname = uploaded_file.name.lower()
+                success_count = 0
+
+                db_map = {
+                    "Alumni_Information": (FILE_ALUMNI_INFO, HEADERS_ALUMNI_INFO, "Student_ID"),
+                    "Board_Exam_Data": (FILE_BOARD_EXAM, HEADERS_BOARD_EXAM, "Record_ID"),
+                    "Career_Tracer": (FILE_CAREER_TRACER, HEADERS_CAREER_TRACER, "Tracer_ID"),
+                    "Graduate_Studies": (FILE_GRADUATE_STUDIES, HEADERS_GRADUATE_STUDIES, "Grad_ID"),
+                    "CQI_Interventions": (FILE_CQI_TAGS, HEADERS_CQI_TAGS, "Intervention_ID"),
+                    "Alumni_Feedback": (FILE_FEEDBACK, HEADERS_FEEDBACK, "Feedback_ID")
+                }
+
+                if fname.endswith(".xlsx"):
+                    xls = pd.ExcelFile(uploaded_file)
+                    for sheet_name in xls.sheet_names:
+                        matched_key = None
+                        for key in db_map:
+                            if key.lower() in sheet_name.lower().replace(" ", "_"):
+                                matched_key = key
+                                break
+                        if matched_key:
+                            file_path, headers, pk_col = db_map[matched_key]
+                            df_upload = pd.read_excel(xls, sheet_name=sheet_name).astype(str)
+
+                            for col in headers:
+                                if col not in df_upload.columns:
+                                    df_upload[col] = ""
+                            df_upload = df_upload[headers]
+
+                            if "Full Overwrite" in restore_mode:
+                                df_upload.to_csv(file_path, index=False, encoding="utf-8")
+                                success_count += 1
+                            else:
+                                df_curr = load_csv_safely(file_path, headers)
+                                if df_curr.empty:
+                                    df_upload.to_csv(file_path, index=False, encoding="utf-8")
+                                else:
+                                    existing_pks = set(df_curr[pk_col].astype(str).str.strip().str.upper())
+                                    new_rows = df_upload[~df_upload[pk_col].astype(str).str.strip().str.upper().isin(existing_pks)]
+                                    if not new_rows.empty:
+                                        df_combined = pd.concat([df_curr, new_rows], ignore_index=True)
+                                        df_combined.to_csv(file_path, index=False, encoding="utf-8")
+                                success_count += 1
+
+                elif fname.endswith(".csv"):
+                    df_upload = pd.read_csv(uploaded_file).astype(str)
+                    matched_key = None
+                    for key, (f_path, headers, pk_col) in db_map.items():
+                        if set(headers).issubset(set(df_upload.columns)) or pk_col in df_upload.columns:
+                            matched_key = key
+                            break
+                    
+                    if matched_key:
+                        file_path, headers, pk_col = db_map[matched_key]
+                        for col in headers:
+                            if col not in df_upload.columns:
+                                df_upload[col] = ""
+                        df_upload = df_upload[headers]
+
+                        if "Full Overwrite" in restore_mode:
+                            df_upload.to_csv(file_path, index=False, encoding="utf-8")
+                            success_count += 1
+                        else:
+                            df_curr = load_csv_safely(file_path, headers)
+                            if df_curr.empty:
+                                df_upload.to_csv(file_path, index=False, encoding="utf-8")
+                            else:
+                                existing_pks = set(df_curr[pk_col].astype(str).str.strip().str.upper())
+                                new_rows = df_upload[~df_upload[pk_col].astype(str).str.strip().str.upper().isin(existing_pks)]
+                                if not new_rows.empty:
+                                    df_combined = pd.concat([df_curr, new_rows], ignore_index=True)
+                                    df_combined.to_csv(file_path, index=False, encoding="utf-8")
+                            success_count += 1
+                    else:
+                        st.error("Could not automatically recognize the CSV columns. Please ensure it matches one of the master database schemas.")
+
+                if success_count > 0:
+                    st.success(f"🎉 Database import completed successfully! Updated {success_count} table(s).")
+                    st.rerun()
+
+            except Exception as ex:
+                st.error(f"❌ Error during database import: {str(ex)}")

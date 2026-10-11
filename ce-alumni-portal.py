@@ -20,12 +20,12 @@ st.set_page_config(
 # Custom CSS for Clean White Background, USJ-R Branding & High Contrast Inputs
 CUSTOM_CSS = """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Montserrat:wght@700;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@600;700&family=Poppins:wght@500;600;700;800&display=swap');
 
     /* Clean Crisp White Main Theme */
     .stApp {
         background-color: #ffffff !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     /* Compact Mobile & Desktop Container */
@@ -42,47 +42,44 @@ CUSTOM_CSS = """
     .header-card {
         background: linear-gradient(135deg, #004d25 0%, #006633 60%, #15803d 100%);
         color: white;
-        padding: 1.2rem 1.4rem;
+        padding: 1.25rem 1.4rem;
         border-radius: 12px;
         text-align: center;
         margin: 0 auto 1.2rem auto;
         max-width: 860px;
-        box-shadow: 0 4px 12px rgba(0,77,37,0.2);
+        box-shadow: 0 4px 12px rgba(0,77,37,0.25);
         border-bottom: 4px solid #ffcc00;
     }
     .header-card h3 {
         margin: 0;
-        font-family: 'Cinzel', serif;
-        font-size: 0.92rem;
-        font-weight: 700;
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.88rem;
+        font-weight: 600;
         color: #f1f5f9;
+        line-height: 1.35;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+    }
+    .header-card h2 {
+        margin: 0.35rem 0 0.15rem 0;
+        font-family: 'Poppins', sans-serif;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #ffcc00;
         line-height: 1.3;
         letter-spacing: 1px;
         text-transform: uppercase;
     }
-    .header-card h2 {
-        margin: 0.4rem 0 0.2rem 0;
-        font-family: 'Cinzel', serif;
-        font-size: 1.4rem;
-        font-weight: 800;
-        color: #ffcc00;
-        line-height: 1.25;
-        letter-spacing: 1.5px;
+    .header-card h1 {
+        margin: 0.2rem 0 0.05rem 0;
+        font-family: 'Bebas Neue', 'Oswald', sans-serif;
+        font-size: 2.6rem;
+        font-weight: 400;
+        color: #ffffff;
+        line-height: 1.15;
+        letter-spacing: 3px;
         text-transform: uppercase;
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    }
-    .header-card h1 {
-        margin: 0.3rem 0 0.1rem 0;
-        font-family: 'Montserrat', sans-serif;
-        font-size: 1.85rem;
-        font-weight: 900;
-        background: linear-gradient(185deg, #FFFFFF 0%, #FFE259 60%, #FFA751 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        line-height: 1.2;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        filter: drop-shadow(0px 2px 5px rgba(0,0,0,0.4));
     }
 
     /* Section Divider Styling (Clean text, no icons) */

@@ -1,5 +1,4 @@
 import os
-import io
 import re
 import csv
 import json
@@ -1971,6 +1970,8 @@ elif st.session_state["is_admin"]:
                 st.rerun()
 
     # --------------------------------------------------------------------------
+    
+    # --------------------------------------------------------------------------
     # ADMIN SECTION 6: MASTER DATA MANAGEMENT (EXPORT & IMPORT)
     # --------------------------------------------------------------------------
     st.markdown('<div class="section-header">Section 6: Master Data Management (Export & Import)</div>', unsafe_allow_html=True)
@@ -2051,10 +2052,10 @@ elif st.session_state["is_admin"]:
 
                 db_map = {
                     "Alumni_Information": (FILE_ALUMNI_INFO, HEADERS_ALUMNI_INFO, "Student_ID"),
-                    "Board_Exam_Data": (FILE_BOARD_EXAM, HEADERS_BOARD_EXAM, "Record_ID"),
-                    "Career_Tracer": (FILE_CAREER_TRACER, HEADERS_CAREER_TRACER, "Tracer_ID"),
-                    "Graduate_Studies": (FILE_GRADUATE_STUDIES, HEADERS_GRADUATE_STUDIES, "Grad_ID"),
-                    "CQI_Interventions": (FILE_CQI_TAGS, HEADERS_CQI_TAGS, "Intervention_ID"),
+                    "Board_Exam_Data": (FILE_BOARD_EXAM, HEADERS_BOARD_EXAM, "Entry_ID"),
+                    "Career_Tracer": (FILE_TRACER, HEADERS_TRACER, "Tracer_ID"),
+                    "Graduate_Studies": (FILE_GRAD_STUDIES, HEADERS_GRAD_STUDIES, "Grad_ID"),
+                    "CQI_Interventions": (FILE_CQI, HEADERS_CQI, "Intervention_ID"),
                     "Alumni_Feedback": (FILE_FEEDBACK, HEADERS_FEEDBACK, "Feedback_ID")
                 }
 

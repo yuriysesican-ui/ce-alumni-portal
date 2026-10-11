@@ -20,6 +20,8 @@ st.set_page_config(
 # Custom CSS for Clean White Background, USJ-R Branding & High Contrast Inputs
 CUSTOM_CSS = """
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Montserrat:wght@700;800;900&display=swap');
+
     /* Clean Crisp White Main Theme */
     .stApp {
         background-color: #ffffff !important;
@@ -50,29 +52,37 @@ CUSTOM_CSS = """
     }
     .header-card h3 {
         margin: 0;
-        font-size: 0.88rem;
-        font-weight: 600;
+        font-family: 'Cinzel', serif;
+        font-size: 0.92rem;
+        font-weight: 700;
         color: #f1f5f9;
-        line-height: 1.2;
-        letter-spacing: 0.5px;
+        line-height: 1.3;
+        letter-spacing: 1px;
         text-transform: uppercase;
     }
     .header-card h2 {
-        margin: 0.35rem 0 0.15rem 0;
-        font-size: 1.35rem;
+        margin: 0.4rem 0 0.2rem 0;
+        font-family: 'Cinzel', serif;
+        font-size: 1.4rem;
         font-weight: 800;
         color: #ffcc00;
-        line-height: 1.2;
-        letter-spacing: 0.5px;
+        line-height: 1.25;
+        letter-spacing: 1.5px;
         text-transform: uppercase;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     .header-card h1 {
-        margin: 0.25rem 0 0.1rem 0;
-        font-size: 1.75rem;
+        margin: 0.3rem 0 0.1rem 0;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 1.85rem;
         font-weight: 900;
-        color: #ffffff;
-        line-height: 1.25;
-        letter-spacing: 0.5px;
+        background: linear-gradient(185deg, #FFFFFF 0%, #FFE259 60%, #FFA751 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 1.2;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        filter: drop-shadow(0px 2px 5px rgba(0,0,0,0.4));
     }
 
     /* Section Divider Styling (Clean text, no icons) */
@@ -390,7 +400,7 @@ if not st.session_state["logged_user"] and not st.session_state["is_admin"]:
         [
             "CE Alumni Sign-In",
             "First Time Registration (Sign-up)",
-            "Administrator Log-in (Admin Access)"
+            "Administrator Log-in"
         ],
         horizontal=True
     )
@@ -399,7 +409,7 @@ if not st.session_state["logged_user"] and not st.session_state["is_admin"]:
 
     # --- RETURNING GRADUATE LOGIN ---
     if auth_choice == "CE Alumni Sign-In":
-        st.subheader("CE Alumni Sign-In")
+        st.markdown('<div class="section-header">CE Alumni Sign-In</div>', unsafe_allow_html=True)
         st.caption("Enter your 10-Digit Student ID Number or Full Name along with your 4-Digit Security PIN.")
 
         col_s1, col_s2 = st.columns(2)
@@ -442,7 +452,7 @@ if not st.session_state["logged_user"] and not st.session_state["is_admin"]:
 
     # --- FIRST TIME REGISTRATION ---
     elif auth_choice == "First Time Registration (Sign-up)":
-        st.subheader("First Time Registration")
+        st.markdown('<div class="section-header">First Time Registration</div>', unsafe_allow_html=True)
         st.caption("Create your alumni registry profile to update board exam logs, career tracer records, and graduate studies.")
 
         st.markdown('<div class="section-header">1. Identity Credentials & Personal Details</div>', unsafe_allow_html=True)
@@ -529,8 +539,8 @@ if not st.session_state["logged_user"] and not st.session_state["is_admin"]:
                     st.rerun()
 
     # --- ADMIN LOGIN ---
-    elif auth_choice == "Administrator Log-in (Admin Access)":
-        st.subheader("Department Administrator Log-In")
+    elif auth_choice == "Administrator Log-in":
+        st.markdown('<div class="section-header">Department Administrator Log-In</div>', unsafe_allow_html=True)
         st.caption("Restricted portal for Civil Engineering Department Chair and Accreditation Committee.")
 
         adm_c1, adm_c2 = st.columns(2)
